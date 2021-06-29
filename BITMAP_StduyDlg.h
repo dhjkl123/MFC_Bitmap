@@ -24,6 +24,13 @@ public:
 	tagBITMAPFILEHEADER m_BitFileHeader; // 첫번째 14바이트
 	tagBITMAPINFOHEADER m_BitInfoHeader; // 두번째 40바이트
 	tagRGBTRIPLE* m_RGBtrip;
+	tagRGBTRIPLE* m_RGBtripTmp;
+	int m_nRGBquadSize;
+
+	CRect m_rcPicture;
+	CRect m_rcOriginPicture;
+
+	void  DrawBitMap();
 // 구현입니다.
 protected:
 	HICON m_hIcon;
@@ -35,4 +42,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedButton1();
+	afx_msg void OnBnClickedButtonGray();
+	afx_msg void OnBnClickedButtonBmpSave();
+	afx_msg void OnDestroy();
 };

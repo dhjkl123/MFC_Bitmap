@@ -21,7 +21,9 @@ CBITMAPStduyDlg::CBITMAPStduyDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_BITMAP_STDUY_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_RGBtripTmp = NULL;
 	m_RGBtrip = NULL;
+	m_nRGBquadSize = 0;
 }
 
 void CBITMAPStduyDlg::DoDataExchange(CDataExchange* pDX)
@@ -33,6 +35,9 @@ BEGIN_MESSAGE_MAP(CBITMAPStduyDlg, CDialog)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON1, &CBITMAPStduyDlg::OnBnClickedButton1)
+	ON_BN_CLICKED(IDC_BUTTON_GRAY, &CBITMAPStduyDlg::OnBnClickedButtonGray)
+	ON_BN_CLICKED(IDC_BUTTON_BMP_SAVE, &CBITMAPStduyDlg::OnBnClickedButtonBmpSave)
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 
@@ -45,10 +50,16 @@ BOOL CBITMAPStduyDlg::OnInitDialog()
 	// 이 대화 상자의 아이콘을 설정합니다.  응용 프로그램의 주 창이 대화 상자가 아닐 경우에는
 	//  프레임워크가 이 작업을 자동으로 수행합니다.
 	SetIcon(m_hIcon, TRUE);			// 큰 아이콘을 설정합니다.
-	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
+	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다. IDC_STATIC_ORIGIN
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 
+	GetDlgItem(IDC_STATIC)->GetWindowRect(m_rcPicture);
+	ScreenToClient(&m_rcPicture);
+
+	GetDlgItem(IDC_STATIC_ORIGIN)->GetWindowRect(m_rcOriginPicture);
+	ScreenToClient(&m_rcOriginPicture);
+	
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
@@ -82,6 +93,8 @@ void CBITMAPStduyDlg::OnPaint()
 	}
 	else
 	{
+		CPaintDC dc(this);
+
 		CDialog::OnPaint();
 	}
 }
@@ -98,6 +111,7 @@ HCURSOR CBITMAPStduyDlg::OnQueryDragIcon()
 void CBITMAPStduyDlg::OnBnClickedButton1()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CClientDC dc(this);
 
 	CFileDialog fileDlg(TRUE, NULL, NULL, OFN_EXPLORER | OFN_HIDEREADONLY, L"파일 선택(*.bmp, *.jpg) | *.bmp; *.jpg");
 	CString strPath;
@@ -112,8 +126,11 @@ void CBITMAPStduyDlg::OnBnClickedButton1()
 
 	HANDLE bmp;
 	CBitmap Bitmap;
+	CBitmap* pOldBmp = NULL;
 	BITMAP bmpinfo;
 	CDC memDC;
+
+	memDC.CreateCompatibleDC(&dc);
 	bmp = LoadImage(NULL, strPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
 	Bitmap.Attach(bmp);
 	Bitmap.GetBitmap(&bmpinfo);
@@ -134,34 +151,131 @@ void CBITMAPStduyDlg::OnBnClickedButton1()
 		UINT nRead = file.Read(pbuf, (UINT)nFileLen);
 		file.Close();
 
-		int nRGBquadSize = nFileLen - (sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER));
-		int RGBCnt = nRGBquadSize / sizeof(tagRGBTRIPLE);
+		m_nRGBquadSize = nFileLen - (sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER));
+		int RGBCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+		if (m_RGBtrip != NULL)
+		{
+			delete m_RGBtrip;
+			m_RGBtrip = NULL;
+		}
+
+		if (m_RGBtripTmp != NULL)
+		{
+			delete m_RGBtripTmp;
+			m_RGBtripTmp = NULL;
+		}
+
 		m_RGBtrip = new tagRGBTRIPLE[RGBCnt];
-		
+		m_RGBtripTmp = new tagRGBTRIPLE[RGBCnt];
 
 		memcpy_s(&m_BitFileHeader, sizeof(tagBITMAPFILEHEADER), pbuf, sizeof(tagBITMAPFILEHEADER));
 		memcpy_s(&m_BitInfoHeader, sizeof(tagBITMAPINFOHEADER), pbuf + sizeof(tagBITMAPFILEHEADER), sizeof(tagBITMAPINFOHEADER));
-		memcpy_s(m_RGBtrip, nRGBquadSize, pbuf + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER), nRGBquadSize);
+		memcpy_s(m_RGBtrip, m_nRGBquadSize, pbuf + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER), m_nRGBquadSize);		
 
-		for (int i = 0; i < RGBCnt; i++)
-		{
-			BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
-			m_RGBtrip[i].rgbtBlue =  m_RGBtrip[i].rgbtGreen =  m_RGBtrip[i].rgbtRed = rgbtGray;
-		}
+		pOldBmp = memDC.SelectObject(&Bitmap);
+		dc.StretchBlt(m_rcOriginPicture.left, m_rcOriginPicture.top, m_rcOriginPicture.Width(), m_rcOriginPicture.Height(),
+			&memDC,0,0, bmpinfo.bmWidth, bmpinfo.bmHeight, SRCCOPY);
+		
+		Invalidate(FALSE);
 
-		memcpy_s(pbuf + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER), nRGBquadSize, m_RGBtrip, nRGBquadSize);
+		memDC.SelectObject(pOldBmp);
+		memDC.DeleteDC();
 
-
-		file.Open(_T(".\\Tmp.bmp"), CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-		file.Write(pbuf, nFileLen);
-		file.Close();
+		
 
 		delete pbuf;
-		delete m_RGBtrip;
-		m_RGBtrip = NULL;
 
 	}
 
 
 
+}
+
+
+void CBITMAPStduyDlg::OnBnClickedButtonGray()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	int RGBCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+	if (RGBCnt <= 0) return;
+
+	memcpy_s(m_RGBtripTmp, m_nRGBquadSize, m_RGBtrip, m_nRGBquadSize);
+
+	for (int i = 0; i < RGBCnt; i++)
+	{	
+		BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
+		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+	}
+
+	DrawBitMap();
+
+}
+
+
+void CBITMAPStduyDlg::OnBnClickedButtonBmpSave()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CFile file;
+	char* pbuf = NULL;
+
+	pbuf = new char[m_nRGBquadSize + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER)];
+
+	memcpy_s(pbuf , sizeof(tagBITMAPFILEHEADER), &m_BitFileHeader, sizeof(tagBITMAPFILEHEADER)); // 파일 헤더 14 
+	memcpy_s(pbuf + sizeof(tagBITMAPFILEHEADER) , sizeof(tagBITMAPINFOHEADER), &m_BitInfoHeader, sizeof(tagBITMAPINFOHEADER)); // 인포헤더
+	memcpy_s(pbuf + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER), m_nRGBquadSize, m_RGBtripTmp, m_nRGBquadSize); // 나머지
+
+	file.Open(_T(".\\Tmp.bmp"), CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
+
+	file.Write(pbuf, sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER) + m_nRGBquadSize);
+	file.Close();
+	delete pbuf;
+}
+
+
+void CBITMAPStduyDlg::OnDestroy()
+{
+	CDialog::OnDestroy();
+
+	if (m_RGBtrip != NULL)
+	{
+		delete m_RGBtrip;
+		m_RGBtrip = NULL;
+	}
+
+	// TODO: 여기에 메시지 처리기 코드를 추가합니다.
+}
+
+void CBITMAPStduyDlg::DrawBitMap()
+{
+	int RGBCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+	if (RGBCnt <= 0) return;
+
+	CClientDC dc(this);
+
+	BITMAPINFO bitmapinfo;
+	RGBQUAD* rgbquad = NULL; 
+
+	rgbquad = new RGBQUAD[RGBCnt];
+
+	memset(rgbquad, 0x00, RGBCnt * sizeof(RGBQUAD));
+
+	for (int i = 0; i < RGBCnt; i++)
+	{
+		rgbquad[i].rgbBlue = m_RGBtripTmp[i].rgbtBlue;
+		rgbquad[i].rgbGreen = m_RGBtripTmp[i].rgbtGreen;
+		rgbquad[i].rgbRed = m_RGBtripTmp[i].rgbtRed;
+	}
+
+	bitmapinfo.bmiHeader = m_BitInfoHeader;
+	bitmapinfo.bmiColors[0] = rgbquad[0];
+
+	DWORD height = m_BitInfoHeader.biHeight;
+
+	DWORD width = m_BitInfoHeader.biWidth;
+
+	SetDIBitsToDevice(dc.GetSafeHdc(), m_rcPicture.left, m_rcPicture.top, width, height, 0, 0, 0, height, m_RGBtripTmp, &bitmapinfo, DIB_RGB_COLORS);
+
+	delete rgbquad;
 }
