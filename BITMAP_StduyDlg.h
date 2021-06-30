@@ -31,6 +31,7 @@ public:
 	CRect m_rcOriginPicture;
 
 	void  DrawBitMap();
+	int  CopyRGB();
 // 구현입니다.
 protected:
 	HICON m_hIcon;
@@ -45,4 +46,13 @@ public:
 	afx_msg void OnBnClickedButtonGray();
 	afx_msg void OnBnClickedButtonBmpSave();
 	afx_msg void OnDestroy();
+	CString m_edit_strThreshHold;
+	afx_msg void OnBnClickedButtonTh();
+//	afx_msg void OnEnChangeEditTh();
+	afx_msg void OnEnUpdateEditTh();
+	afx_msg void OnBnClickedButtonAdd();
+	afx_msg void OnBnClickedButtonSub();
+	CSliderCtrl m_slid;
+//	afx_msg void OnTRBNThumbPosChangingSlider(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 };

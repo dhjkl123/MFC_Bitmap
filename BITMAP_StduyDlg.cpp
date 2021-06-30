@@ -19,6 +19,7 @@
 
 CBITMAPStduyDlg::CBITMAPStduyDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_BITMAP_STDUY_DIALOG, pParent)
+	, m_edit_strThreshHold(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	m_RGBtripTmp = NULL;
@@ -29,6 +30,8 @@ CBITMAPStduyDlg::CBITMAPStduyDlg(CWnd* pParent /*=nullptr*/)
 void CBITMAPStduyDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
+	DDX_Text(pDX, IDC_EDIT_TH, m_edit_strThreshHold);
+	DDX_Control(pDX, IDC_SLIDER, m_slid);
 }
 
 BEGIN_MESSAGE_MAP(CBITMAPStduyDlg, CDialog)
@@ -38,6 +41,13 @@ BEGIN_MESSAGE_MAP(CBITMAPStduyDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_GRAY, &CBITMAPStduyDlg::OnBnClickedButtonGray)
 	ON_BN_CLICKED(IDC_BUTTON_BMP_SAVE, &CBITMAPStduyDlg::OnBnClickedButtonBmpSave)
 	ON_WM_DESTROY()
+	ON_BN_CLICKED(IDC_BUTTON_TH, &CBITMAPStduyDlg::OnBnClickedButtonTh)
+//	ON_EN_CHANGE(IDC_EDIT_TH, &CBITMAPStduyDlg::OnEnChangeEditTh)
+	ON_EN_UPDATE(IDC_EDIT_TH, &CBITMAPStduyDlg::OnEnUpdateEditTh)
+	ON_BN_CLICKED(IDC_BUTTON_ADD, &CBITMAPStduyDlg::OnBnClickedButtonAdd)
+	ON_BN_CLICKED(IDC_BUTTON_SUB, &CBITMAPStduyDlg::OnBnClickedButtonSub)
+//	ON_NOTIFY(TRBN_THUMBPOSCHANGING, IDC_SLIDER, &CBITMAPStduyDlg::OnTRBNThumbPosChangingSlider)
+	ON_WM_HSCROLL()
 END_MESSAGE_MAP()
 
 
@@ -60,6 +70,11 @@ BOOL CBITMAPStduyDlg::OnInitDialog()
 	GetDlgItem(IDC_STATIC_ORIGIN)->GetWindowRect(m_rcOriginPicture);
 	ScreenToClient(&m_rcOriginPicture);
 	
+	m_slid.SetRange(0, 255);
+	m_slid.SetPos(127);
+	m_slid.SetLineSize(10);
+	
+
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
@@ -196,15 +211,15 @@ void CBITMAPStduyDlg::OnBnClickedButtonGray()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 
-	int RGBCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+	int RGBCnt = CopyRGB();
 
 	if (RGBCnt <= 0) return;
 
-	memcpy_s(m_RGBtripTmp, m_nRGBquadSize, m_RGBtrip, m_nRGBquadSize);
-
 	for (int i = 0; i < RGBCnt; i++)
 	{	
-		BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
+		//BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
+		//BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.2126 + m_RGBtrip[i].rgbtGreen * 0.7152 + m_RGBtrip[i].rgbtBlue * 0.0722;
+		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed  + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue)/3;
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
 	}
 
@@ -243,6 +258,12 @@ void CBITMAPStduyDlg::OnDestroy()
 		m_RGBtrip = NULL;
 	}
 
+	if (m_RGBtripTmp != NULL)
+	{
+		delete m_RGBtripTmp;
+		m_RGBtripTmp = NULL;
+	}
+
 	// TODO: 여기에 메시지 처리기 코드를 추가합니다.
 }
 
@@ -278,4 +299,180 @@ void CBITMAPStduyDlg::DrawBitMap()
 	SetDIBitsToDevice(dc.GetSafeHdc(), m_rcPicture.left, m_rcPicture.top, width, height, 0, 0, 0, height, m_RGBtripTmp, &bitmapinfo, DIB_RGB_COLORS);
 
 	delete rgbquad;
+}
+
+int  CBITMAPStduyDlg::CopyRGB()
+{
+
+	int nCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+	if (nCnt <= 0) return -1;
+
+	memcpy_s(m_RGBtripTmp, m_nRGBquadSize, m_RGBtrip, m_nRGBquadSize);
+
+	return nCnt;
+}
+
+void CBITMAPStduyDlg::OnBnClickedButtonTh()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	int RGBCnt = CopyRGB();
+
+	if (RGBCnt <= 0) return;
+
+	for (int i = 0; i < RGBCnt; i++)
+	{
+		BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
+
+		if (_ttoi(m_edit_strThreshHold) < rgbtGray) rgbtGray = 0;
+		else rgbtGray = 255;
+
+		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+	}
+
+	DrawBitMap();
+
+}
+
+
+//void CBITMAPStduyDlg::OnEnChangeEditTh()
+//{
+//	// TODO:  RICHEDIT 컨트롤인 경우, 이 컨트롤은
+//	// CDialog::OnInitDialog() 함수를 재지정 
+//	//하고 마스크에 OR 연산하여 설정된 ENM_CHANGE 플래그를 지정하여 CRichEditCtrl().SetEventMask()를 호출하지 않으면
+//	// 이 알림 메시지를 보내지 않습니다.
+//
+//	// TODO:  여기에 컨트롤 알림 처리기 코드를 추가합니다.
+//
+//	if (_ttoi(m_edit_strThreshHold) > 256) m_edit_strThreshHold.Format(_T("255"));
+//	
+//	UpdateData();
+//}
+
+
+void CBITMAPStduyDlg::OnEnUpdateEditTh()
+{
+	// TODO:  RICHEDIT 컨트롤인 경우, 이 컨트롤은
+	// CDialog::OnInitDialog() 함수를 재지정 
+	//하여, IParam 마스크에 OR 연산하여 설정된 ENM_SCROLL 플래그를 지정하여 컨트롤에 EM_SETEVENTMASK 메시지를 보내지 않으면
+	// 편집 컨트롤이 바뀐 텍스트를 표시하려고 함을 나타냅니다.
+
+	// TODO:  여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	UpdateData();
+	if (_ttoi(m_edit_strThreshHold) > 256) m_edit_strThreshHold.Format(_T("255"));
+
+	UpdateData(FALSE);
+	Invalidate();
+}
+
+
+void CBITMAPStduyDlg::OnBnClickedButtonAdd()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	int RGBCnt = CopyRGB();
+
+	if (RGBCnt <= 0) return;
+
+	// 픽셀은 BYTE 단위로 RGB를 표현 함으로 255를 넘지 않아야한다.
+
+	for (int i = 0; i < RGBCnt; i++) 
+	{ 
+		int ntmp = 0;
+		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3; 
+		//rgbtGray = rgbtGray + 200;
+		ntmp = rgbtGray + 100;
+		if (ntmp > 255)
+			rgbtGray = 255;
+		else
+			rgbtGray = rgbtGray + 100;
+	
+
+		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+	}
+
+	DrawBitMap();
+
+
+}
+
+
+void CBITMAPStduyDlg::OnBnClickedButtonSub()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	int RGBCnt = CopyRGB();
+
+	if (RGBCnt <= 0) return;
+
+	for (int i = 0; i < RGBCnt; i++)
+	{
+		int ntmp = 0;
+		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
+
+		ntmp = rgbtGray - 100;
+		if (ntmp < 0)
+			rgbtGray = 0;
+		else
+			rgbtGray = rgbtGray - 100;
+
+		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+	}
+
+	DrawBitMap();
+
+}
+
+
+//void CBITMAPStduyDlg::OnTRBNThumbPosChangingSlider(NMHDR* pNMHDR, LRESULT* pResult)
+//{
+//	// 이 기능을 사용하려면 Windows Vista 이상이 있어야 합니다.
+//	// _WIN32_WINNT 기호는 0x0600보다 크거나 같아야 합니다.
+//	NMTRBTHUMBPOSCHANGING* pNMTPC = reinterpret_cast<NMTRBTHUMBPOSCHANGING*>(pNMHDR);
+//	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+//
+//
+//
+//	DrawBitMap();
+//
+//	*pResult = 0;
+//}
+
+
+void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
+{
+	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+
+	int RGBCnt = CopyRGB();
+
+	if (RGBCnt <= 0) return;
+
+	for (int i = 0; i < RGBCnt; i++)
+	{
+		int ntmp = 0;
+		int nPos = m_slid.GetPos();
+		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
+
+		ntmp = rgbtGray + (nPos - 127);
+
+		/*if (nPos >= 127)
+			ntmp = rgbtGray + nPos;
+		else
+			ntmp = rgbtGray - nPos;*/
+
+		if (ntmp < 0)
+			rgbtGray = 0;
+		else if (ntmp > 255)
+			rgbtGray = 255;
+		else
+			rgbtGray = rgbtGray + (nPos - 127);
+
+
+		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+	}
+
+	DrawBitMap();
+
+	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
 }
