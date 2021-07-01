@@ -32,6 +32,7 @@ public:
 
 	void  DrawBitMap();
 	int  CopyRGB();
+	BYTE LimiteBYTE(int* byte);
 // 구현입니다.
 protected:
 	HICON m_hIcon;
@@ -55,4 +56,5 @@ public:
 	CSliderCtrl m_slid;
 //	afx_msg void OnTRBNThumbPosChangingSlider(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+	CSliderCtrl m_slid2;
 };

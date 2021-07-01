@@ -32,6 +32,7 @@ void CBITMAPStduyDlg::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	DDX_Text(pDX, IDC_EDIT_TH, m_edit_strThreshHold);
 	DDX_Control(pDX, IDC_SLIDER, m_slid);
+	DDX_Control(pDX, IDC_SLIDER2, m_slid2);
 }
 
 BEGIN_MESSAGE_MAP(CBITMAPStduyDlg, CDialog)
@@ -73,9 +74,13 @@ BOOL CBITMAPStduyDlg::OnInitDialog()
 	m_slid.SetRange(0, 255);
 	m_slid.SetPos(127);
 	m_slid.SetLineSize(10);
+
+	m_slid2.SetRange(-50, 50);
+	m_slid2.SetPos(1);
+	m_slid2.SetLineSize(1);
 	
 
-	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
+	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다. m_slid2
 }
 
 // 대화 상자에 최소화 단추를 추가할 경우 아이콘을 그리려면
@@ -381,14 +386,11 @@ void CBITMAPStduyDlg::OnBnClickedButtonAdd()
 	{ 
 		int ntmp = 0;
 		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3; 
-		//rgbtGray = rgbtGray + 200;
-		ntmp = rgbtGray + 100;
-		if (ntmp > 255)
-			rgbtGray = 255;
-		else
-			rgbtGray = rgbtGray + 100;
-	
 
+		ntmp = rgbtGray + 100;
+
+		rgbtGray = LimiteBYTE(&ntmp);
+	
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
 	}
 
@@ -412,10 +414,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
 
 		ntmp = rgbtGray - 100;
-		if (ntmp < 0)
-			rgbtGray = 0;
-		else
-			rgbtGray = rgbtGray - 100;
+
+		rgbtGray = LimiteBYTE(&ntmp);
 
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
 	}
@@ -443,36 +443,60 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
 	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
-
-	int RGBCnt = CopyRGB();
-
-	if (RGBCnt <= 0) return;
-
-	for (int i = 0; i < RGBCnt; i++)
+	if (IDC_SLIDER == pScrollBar->GetDlgCtrlID())
 	{
-		int ntmp = 0;
-		int nPos = m_slid.GetPos();
-		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
+		int RGBCnt = CopyRGB();
 
-		ntmp = rgbtGray + (nPos - 127);
+		if (RGBCnt <= 0) return;
 
-		/*if (nPos >= 127)
-			ntmp = rgbtGray + nPos;
-		else
-			ntmp = rgbtGray - nPos;*/
+		for (int i = 0; i < RGBCnt; i++)
+		{
+			int ntmp = 0;
+			int nPos = m_slid.GetPos();
+			BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
 
-		if (ntmp < 0)
-			rgbtGray = 0;
-		else if (ntmp > 255)
-			rgbtGray = 255;
-		else
-			rgbtGray = rgbtGray + (nPos - 127);
+			ntmp = rgbtGray + (nPos - 127);
+
+			rgbtGray = LimiteBYTE(&ntmp);
 
 
-		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+		}
+	}
+	else if (IDC_SLIDER2 == pScrollBar->GetDlgCtrlID())
+	{
+		int RGBCnt = CopyRGB();
+
+		if (RGBCnt <= 0) return;
+
+		for (int i = 0; i < RGBCnt; i++)
+		{
+			int ntmp = 0;
+			int nPos = m_slid2.GetPos();
+			BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
+
+			ntmp = rgbtGray;
+
+			ntmp = ntmp + ((ntmp - 128) * ((double)nPos/100));
+
+			rgbtGray = LimiteBYTE(&ntmp);
+
+
+			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+		}
 	}
 
 	DrawBitMap();
 
 	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
+}
+
+BYTE CBITMAPStduyDlg::LimiteBYTE(int* byte)
+{
+	if (*byte < 0)
+		*byte = 0;
+	else if (*byte > 255)
+		*byte = 255;
+
+	return (BYTE)*byte;
 }
