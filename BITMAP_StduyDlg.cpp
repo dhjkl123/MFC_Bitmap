@@ -25,6 +25,8 @@ CBITMAPStduyDlg::CBITMAPStduyDlg(CWnd* pParent /*=nullptr*/)
 	m_RGBtripTmp = NULL;
 	m_RGBtrip = NULL;
 	m_nRGBquadSize = 0;
+	//m_nHisto = NULL;
+	//m_fHisto = NULL;
 }
 
 void CBITMAPStduyDlg::DoDataExchange(CDataExchange* pDX)
@@ -105,15 +107,48 @@ void CBITMAPStduyDlg::OnPaint()
 
 		// 아이콘을 그립니다.
 		dc.DrawIcon(x, y, m_hIcon);
-
-
-		/*memDC.CreateCompatibleDC(&dc);
-		memDC.SelectObject(bmp);*/
 	
 	}
 	else
 	{
+		int nCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+		if (nCnt <= 0) return;
+
 		CPaintDC dc(this);
+		CRect rect, buffrect;
+		BITMAP bitmap;
+		GetDlgItem(IDC_STATIC_HISTO)->GetWindowRect(rect);
+		ScreenToClient(&rect);
+		buffrect = rect;
+
+		buffrect.left = 0;
+		buffrect.top = 0;
+		buffrect.right = rect.right - rect.left;
+		buffrect.bottom = rect.bottom - rect.top;
+
+
+
+		MakeMemBitmap(&buffrect);
+
+		CDC MemDC;
+		CBitmap* pOldBmp;
+		
+		MemDC.CreateCompatibleDC(&dc);
+
+
+		pOldBmp = MemDC.SelectObject(&m_Bitmap);
+
+		pOldBmp->GetBitmap(&bitmap);
+		
+
+//		dc.BitBlt(rect.left, rect.top, rect.Width(), rect.Height(), &MemDC, 0, 0, SRCCOPY);
+
+		dc.StretchBlt(rect.left, rect.top, rect.Width(), rect.Height(),
+			&MemDC, 0, 0, buffrect.Width(), buffrect.Height(), SRCCOPY);
+
+		MemDC.SelectObject(pOldBmp);
+		MemDC.DeleteDC();
 
 		CDialog::OnPaint();
 	}
@@ -185,9 +220,14 @@ void CBITMAPStduyDlg::OnBnClickedButton1()
 			m_RGBtripTmp = NULL;
 		}
 
+
+
+
 		m_RGBtrip = new tagRGBTRIPLE[RGBCnt];
 		m_RGBtripTmp = new tagRGBTRIPLE[RGBCnt];
 
+		memset(m_nHisto, 0x00, 256 * 4);
+		memset(m_fHisto, 0x00, 256 * 4);
 		memcpy_s(&m_BitFileHeader, sizeof(tagBITMAPFILEHEADER), pbuf, sizeof(tagBITMAPFILEHEADER));
 		memcpy_s(&m_BitInfoHeader, sizeof(tagBITMAPINFOHEADER), pbuf + sizeof(tagBITMAPFILEHEADER), sizeof(tagBITMAPINFOHEADER));
 		memcpy_s(m_RGBtrip, m_nRGBquadSize, pbuf + sizeof(tagBITMAPFILEHEADER) + sizeof(tagBITMAPINFOHEADER), m_nRGBquadSize);		
@@ -201,8 +241,7 @@ void CBITMAPStduyDlg::OnBnClickedButton1()
 		memDC.SelectObject(pOldBmp);
 		memDC.DeleteDC();
 
-		
-
+	
 		delete pbuf;
 
 	}
@@ -220,12 +259,16 @@ void CBITMAPStduyDlg::OnBnClickedButtonGray()
 
 	if (RGBCnt <= 0) return;
 
-	for (int i = 0; i < RGBCnt; i++)
+	memset(m_nHisto, 0x00, 256 * 4);
+
+	for (int i = 0; i < RGBCnt; i++) //i++
 	{	
 		//BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
 		//BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.2126 + m_RGBtrip[i].rgbtGreen * 0.7152 + m_RGBtrip[i].rgbtBlue * 0.0722;
 		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed  + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue)/3;
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
 	}
 
 	DrawBitMap();
@@ -326,6 +369,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonTh()
 
 	if (RGBCnt <= 0) return;
 
+	memset(m_nHisto, 0x00, 256 * 4);
+
 	for (int i = 0; i < RGBCnt; i++)
 	{
 		BYTE rgbtGray = m_RGBtrip[i].rgbtRed * 0.299 + m_RGBtrip[i].rgbtGreen * 0.587 + m_RGBtrip[i].rgbtBlue * 0.114;
@@ -334,9 +379,13 @@ void CBITMAPStduyDlg::OnBnClickedButtonTh()
 		else rgbtGray = 255;
 
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
 	}
 
 	DrawBitMap();
+
+	
 
 }
 
@@ -382,6 +431,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonAdd()
 
 	// 픽셀은 BYTE 단위로 RGB를 표현 함으로 255를 넘지 않아야한다.
 
+	memset(m_nHisto, 0x00, 256 * 4);
+
 	for (int i = 0; i < RGBCnt; i++) 
 	{ 
 		int ntmp = 0;
@@ -392,6 +443,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonAdd()
 		rgbtGray = LimiteBYTE(&ntmp);
 	
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
 	}
 
 	DrawBitMap();
@@ -408,6 +461,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 
 	if (RGBCnt <= 0) return;
 
+	memset(m_nHisto, 0x00, 256 * 4);
+
 	for (int i = 0; i < RGBCnt; i++)
 	{
 		int ntmp = 0;
@@ -418,6 +473,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 		rgbtGray = LimiteBYTE(&ntmp);
 
 		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
 	}
 
 	DrawBitMap();
@@ -443,11 +500,15 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
 	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+	int RGBCnt = CopyRGB();
+
+	if (RGBCnt <= 0) return;
+
+	memset(m_nHisto, 0x00, 256 * 4);
+	memset(m_fHisto, 0x00, 256 * 4);
+
 	if (IDC_SLIDER == pScrollBar->GetDlgCtrlID())
 	{
-		int RGBCnt = CopyRGB();
-
-		if (RGBCnt <= 0) return;
 
 		for (int i = 0; i < RGBCnt; i++)
 		{
@@ -461,13 +522,15 @@ void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 
 
 			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+			m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
+
+			m_fHisto[m_RGBtripTmp[i].rgbtBlue] = static_cast<float>(m_nHisto[m_RGBtripTmp[i].rgbtBlue]) / RGBCnt;
 		}
 	}
 	else if (IDC_SLIDER2 == pScrollBar->GetDlgCtrlID())
 	{
-		int RGBCnt = CopyRGB();
-
-		if (RGBCnt <= 0) return;
+		
 
 		for (int i = 0; i < RGBCnt; i++)
 		{
@@ -483,9 +546,14 @@ void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 
 
 			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
+
+			m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
+
+			m_fHisto[m_RGBtripTmp[i].rgbtBlue] = static_cast<float>(m_nHisto[m_RGBtripTmp[i].rgbtBlue]) / RGBCnt;
 		}
 	}
 
+	Invalidate(FALSE);
 	DrawBitMap();
 
 	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
@@ -500,3 +568,60 @@ BYTE CBITMAPStduyDlg::LimiteBYTE(int* byte)
 
 	return (BYTE)*byte;
 }
+
+void CBITMAPStduyDlg::MakeMemBitmap(CRect* rc)
+{
+	if (m_nHisto == NULL) return;
+
+	int nCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+	CClientDC dc(this);
+	CBitmap* pOldBmp;
+	CDC MemDC;
+
+	m_Bitmap.DeleteObject();
+	m_Bitmap.CreateCompatibleBitmap(&dc, rc->Width(), rc->Height());
+	MemDC.CreateCompatibleDC(&dc);
+	pOldBmp = MemDC.SelectObject(&m_Bitmap);
+
+	//<--- 그리기
+	CPen Pen(PS_SOLID, 3, RGB(255, 0, 0));
+	CPen* pOldPen;
+	CBrush* pOldBrush, brush;
+	COLORREF color = 0x00ffffff;
+	brush.CreateSolidBrush(color);
+	
+
+	pOldBrush = MemDC.SelectObject(&brush);
+
+	MemDC.Rectangle(rc);
+
+	MemDC.SelectObject(pOldBrush);
+
+	//pOldPen = MemDC.SelectObject(&Pen);
+
+	double dbRcSize = (double)rc->Width()/256;
+
+	float max_histo = m_fHisto[0];
+	for (int i = 1; i < 256; i++)
+		if (m_fHisto[i] > max_histo) max_histo = m_fHisto[i];
+
+	for (int i = 0; i < 256; i++)
+	{
+		int nXpos = dbRcSize * i;
+		int nYpos = m_fHisto[i] * 100 / max_histo;
+		MemDC.MoveTo(nXpos, rc->bottom);
+		MemDC.LineTo(nXpos, rc->bottom - (nYpos * rc->bottom / 100));
+	}
+
+
+
+	//MemDC.SelectObject(pOldPen);
+	//--->
+
+	MemDC.SelectObject(pOldBmp);
+	MemDC.DeleteDC();
+
+
+}
+

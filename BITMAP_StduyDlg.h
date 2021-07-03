@@ -29,10 +29,14 @@ public:
 
 	CRect m_rcPicture;
 	CRect m_rcOriginPicture;
+	CBitmap m_Bitmap;
+	int m_nHisto[256];
+	float m_fHisto[256];
 
 	void  DrawBitMap();
 	int  CopyRGB();
 	BYTE LimiteBYTE(int* byte);
+	void MakeMemBitmap(CRect* rc);
 // 구현입니다.
 protected:
 	HICON m_hIcon;
