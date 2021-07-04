@@ -32,8 +32,13 @@ public:
 	CBitmap m_Bitmap;
 	int m_nHisto[256];
 	float m_fHisto[256];
+	float m_fMaxHisto;
+	BYTE m_max_histo, m_min_histo;
 
-	void  DrawBitMap();
+	void OnCalcHisto(int i, int nRet, int Max);
+	void OnContrast(int Cnt);
+	void MinMaxHisto(tagRGBTRIPLE* tagRGB);
+	void DrawBitMap();
 	int  CopyRGB();
 	BYTE LimiteBYTE(int* byte);
 	void MakeMemBitmap(CRect* rc);
@@ -47,6 +52,8 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 public:
+	afx_msg void OnBnClickedRadio(UINT unid);
+
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButtonGray();
 	afx_msg void OnBnClickedButtonBmpSave();

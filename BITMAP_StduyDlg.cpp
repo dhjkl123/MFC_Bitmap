@@ -50,6 +50,7 @@ BEGIN_MESSAGE_MAP(CBITMAPStduyDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_ADD, &CBITMAPStduyDlg::OnBnClickedButtonAdd)
 	ON_BN_CLICKED(IDC_BUTTON_SUB, &CBITMAPStduyDlg::OnBnClickedButtonSub)
 //	ON_NOTIFY(TRBN_THUMBPOSCHANGING, IDC_SLIDER, &CBITMAPStduyDlg::OnTRBNThumbPosChangingSlider)
+	ON_CONTROL_RANGE(BN_CLICKED,IDC_RADIO_NON,IDC_RADIO_EQ,  &CBITMAPStduyDlg::OnBnClickedRadio)
 	ON_WM_HSCROLL()
 END_MESSAGE_MAP()
 
@@ -81,6 +82,9 @@ BOOL CBITMAPStduyDlg::OnInitDialog()
 	m_slid2.SetPos(1);
 	m_slid2.SetLineSize(1);
 	
+	CButton* pCheck;
+	pCheck = (CButton*)GetDlgItem(IDC_RADIO_NON);
+	pCheck->SetCheck(1);
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다. m_slid2
 }
@@ -440,11 +444,7 @@ void CBITMAPStduyDlg::OnBnClickedButtonAdd()
 
 		ntmp = rgbtGray + 100;
 
-		rgbtGray = LimiteBYTE(&ntmp);
-	
-		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
-
-		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
+		OnCalcHisto(i, ntmp, RGBCnt);
 	}
 
 	DrawBitMap();
@@ -470,11 +470,8 @@ void CBITMAPStduyDlg::OnBnClickedButtonSub()
 
 		ntmp = rgbtGray - 100;
 
-		rgbtGray = LimiteBYTE(&ntmp);
+		OnCalcHisto(i, ntmp, RGBCnt);
 
-		m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
-
-		m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
 	}
 
 	DrawBitMap();
@@ -507,7 +504,7 @@ void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 	memset(m_nHisto, 0x00, 256 * 4);
 	memset(m_fHisto, 0x00, 256 * 4);
 
-	if (IDC_SLIDER == pScrollBar->GetDlgCtrlID())
+	if (IDC_SLIDER == pScrollBar->GetDlgCtrlID()) //밝기 조절
 	{
 
 		for (int i = 0; i < RGBCnt; i++)
@@ -518,41 +515,20 @@ void CBITMAPStduyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 
 			ntmp = rgbtGray + (nPos - 127);
 
-			rgbtGray = LimiteBYTE(&ntmp);
+			OnCalcHisto(i, ntmp, RGBCnt);
 
-
-			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
-
-			m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
-
-			m_fHisto[m_RGBtripTmp[i].rgbtBlue] = static_cast<float>(m_nHisto[m_RGBtripTmp[i].rgbtBlue]) / RGBCnt;
 		}
 	}
-	else if (IDC_SLIDER2 == pScrollBar->GetDlgCtrlID())
-	{
-		
-
-		for (int i = 0; i < RGBCnt; i++)
-		{
-			int ntmp = 0;
-			int nPos = m_slid2.GetPos();
-			BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
-
-			ntmp = rgbtGray;
-
-			ntmp = ntmp + ((ntmp - 128) * ((double)nPos/100));
-
-			rgbtGray = LimiteBYTE(&ntmp);
-
-
-			m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed = rgbtGray;
-
-			m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
-
-			m_fHisto[m_RGBtripTmp[i].rgbtBlue] = static_cast<float>(m_nHisto[m_RGBtripTmp[i].rgbtBlue]) / RGBCnt;
-		}
+	else if (IDC_SLIDER2 == pScrollBar->GetDlgCtrlID()) //대비 조절
+	{	
+		OnContrast(RGBCnt);
 	}
 
+	m_fMaxHisto = m_fHisto[0];
+	for (int i = 1; i < 256; i++)
+		if (m_fHisto[i] > m_fMaxHisto) m_fMaxHisto = m_fHisto[i];
+
+	MinMaxHisto(m_RGBtripTmp);
 	Invalidate(FALSE);
 	DrawBitMap();
 
@@ -567,6 +543,52 @@ BYTE CBITMAPStduyDlg::LimiteBYTE(int* byte)
 		*byte = 255;
 
 	return (BYTE)*byte;
+}
+
+void CBITMAPStduyDlg::OnContrast(int Cnt)
+{
+	for (int i = 0; i < Cnt; i++)
+	{
+		int ntmp = 0;
+		int nPos = m_slid2.GetPos();
+		BYTE rgbtGray = (m_RGBtrip[i].rgbtRed + m_RGBtrip[i].rgbtGreen + m_RGBtrip[i].rgbtBlue) / 3;
+
+		ntmp = rgbtGray;
+
+		ntmp = ntmp + ((ntmp - 128) * ((double)nPos / 100));
+
+		OnCalcHisto(i, ntmp, Cnt);
+
+	}
+}
+
+void CBITMAPStduyDlg::MinMaxHisto(tagRGBTRIPLE* tagRGB)
+{
+	m_max_histo = tagRGB[0].rgbtBlue;
+	m_min_histo = tagRGB[0].rgbtBlue;
+
+	for (int i = 1; i < 256; i++)
+	{
+		if (tagRGB[i].rgbtBlue > m_max_histo)
+			m_max_histo = tagRGB[i].rgbtBlue;
+
+		if (tagRGB[i].rgbtBlue < m_min_histo)
+			m_min_histo = tagRGB[i].rgbtBlue;
+
+	}
+}
+
+void CBITMAPStduyDlg::OnCalcHisto(int i, int nRet , int Max)
+{
+	BYTE bbyte = LimiteBYTE(&nRet);
+
+	m_RGBtripTmp[i].rgbtBlue = m_RGBtripTmp[i].rgbtGreen = m_RGBtripTmp[i].rgbtRed
+		= bbyte;
+
+	m_nHisto[m_RGBtripTmp[i].rgbtBlue]++;
+
+	m_fHisto[m_RGBtripTmp[i].rgbtBlue] = static_cast<float>(m_nHisto[m_RGBtripTmp[i].rgbtBlue]) / Max;
+
 }
 
 void CBITMAPStduyDlg::MakeMemBitmap(CRect* rc)
@@ -602,26 +624,76 @@ void CBITMAPStduyDlg::MakeMemBitmap(CRect* rc)
 
 	double dbRcSize = (double)rc->Width()/256;
 
-	float max_histo = m_fHisto[0];
-	for (int i = 1; i < 256; i++)
-		if (m_fHisto[i] > max_histo) max_histo = m_fHisto[i];
 
 	for (int i = 0; i < 256; i++)
 	{
 		int nXpos = dbRcSize * i;
-		int nYpos = m_fHisto[i] * 100 / max_histo;
+		int nYpos = m_fHisto[i] * 100 / m_fMaxHisto;
 		MemDC.MoveTo(nXpos, rc->bottom);
 		MemDC.LineTo(nXpos, rc->bottom - (nYpos * rc->bottom / 100));
 	}
 
-
-
-	//MemDC.SelectObject(pOldPen);
-	//--->
-
 	MemDC.SelectObject(pOldBmp);
 	MemDC.DeleteDC();
 
-
 }
 
+void CBITMAPStduyDlg::OnBnClickedRadio(UINT unid)
+{
+	int nCnt = m_nRGBquadSize / sizeof(tagRGBTRIPLE);
+
+	memset(m_nHisto, 0x00, 256 * 4);
+	memset(m_fHisto, 0x00, 256 * 4);
+
+	switch (unid)
+	{
+	case IDC_RADIO_NON: // 대비
+		OnContrast(nCnt);
+		break;
+
+	case IDC_RADIO_STRET: // 히스토그램 스트레치 (어두울땐 밝게, 밝을땐 어둡게)
+
+		MinMaxHisto(m_RGBtripTmp);
+
+		for (int i = 0; i < nCnt; i++)
+		{
+			//m_fHisto[i] = (m_fHisto[i] - m_min_histo) * 255 / (m_max_histo - m_min_histo);
+			int nRet = (m_RGBtripTmp[i].rgbtBlue - m_min_histo) * 255 / (m_max_histo - m_min_histo);
+
+			OnCalcHisto(i, nRet, nCnt);
+		}
+		break;
+
+	case IDC_RADIO_EQ: // 히스토그램 평활화 (대비를 더 극명하게)
+
+		OnContrast(nCnt);
+		int nHisto[256];
+		int fHisto[256];
+		nHisto[0] = m_nHisto[0];
+
+		for (int i = 0; i < 255; i++)		
+			nHisto[i + 1] = nHisto[i] + m_nHisto[i + 1];
+
+		for (int i = 0; i < nCnt; i++)
+		{
+			double nRet = ((double)nHisto[m_RGBtripTmp[i].rgbtBlue] / (double)nHisto[255]) * 255;
+
+			OnCalcHisto(i, nRet, nCnt);
+
+			m_fMaxHisto = m_fHisto[0];
+			for (int j = 1; j < 256; j++)
+				if (m_fHisto[j] > m_fMaxHisto) m_fMaxHisto = m_fHisto[j];
+
+
+		}
+
+		break;
+
+	default:
+		break;
+	}
+
+	Invalidate(FALSE);
+	DrawBitMap();
+
+}
